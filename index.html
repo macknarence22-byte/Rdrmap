@@ -1,635 +1,91 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>RP Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="/style.css?v=9"/>
-
-  <style>
-    :root{
-      --bg:#0b0e14;
-      --panel:#111827cc;
-      --panel2:#0b1220cc;
-      --border:#233044;
-      --text:#e7eaf0;
-      --muted:#9aa3b2;
-      --accent:#4fa3ff;
-      --danger:#0b0b0b;
-      --radius:16px;
-      --blur: blur(14px);
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%; margin:0; background:var(--bg); color:var(--text); overflow:hidden; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-    #map{position:fixed; inset:0; background:#000;}
-    /* Drawer */
-    #drawer{
-      position:fixed; left:14px; top:14px; bottom:14px;
-      width:min(92vw, 360px);
-      z-index:50;
-      background:linear-gradient(180deg,var(--panel),var(--panel2));
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      backdrop-filter:var(--blur);
-      box-shadow:0 14px 40px rgba(0,0,0,.45);
-      display:flex; flex-direction:column;
-      transform:translateX(0);
-      transition:transform .2s ease;
-      overflow:hidden;
-    }
-    #drawer.closed{ transform:translateX(calc(-100% - 18px)); }
-    #drawerHeader{
-      padding:14px 14px 10px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-    }
-    #drawerHeader .title{
-      display:flex; flex-direction:column; gap:2px;
-    }
-    #drawerHeader .title b{font-size:15px}
-    #drawerHeader .title span{font-size:12px; color:var(--muted)}
-    #drawerHeader .row{display:flex; gap:8px; align-items:center}
-    .chip{
-      font-size:12px; padding:6px 10px; border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.20);
-      color:var(--muted);
-      user-select:none;
-    }
-    #drawerBody{padding:12px; overflow:auto; flex:1;}
-    .section{margin:0 0 14px}
-    .section h3{
-      margin:0 0 8px; font-size:12px; letter-spacing:.08em;
-      color:var(--muted); text-transform:uppercase;
-    }
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    input, select, button{
-      width:100%;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.26);
-      color:var(--text);
-      font-weight:700;
-      outline:none;
-    }
-    button{cursor:pointer}
-    button:hover{filter:brightness(1.05)}
-    button.primary{background:rgba(79,163,255,.16); border-color:rgba(79,163,255,.35)}
-    button.danger{background:rgba(0,0,0,.55); border-color:#000; color:#fff;}
-    .muted{font-size:12px; color:var(--muted); line-height:1.35}
-    /* Toggle button */
-    #drawerToggle{
-      position:fixed; left:14px; top:14px;
-      z-index:60;
-      width:44px; height:44px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      background:rgba(17,24,39,.72);
-      backdrop-filter:var(--blur);
-      box-shadow:0 14px 40px rgba(0,0,0,.45);
-      display:none; /* shown when drawer is closed */
-      cursor:pointer;
-      font-size:18px; color:var(--text);
-    }
-    /* Info card */
-    #infoCard{
-      position:fixed; right:14px; bottom:14px;
-      z-index:45;
-      width:min(92vw, 360px);
-      background:rgba(17,24,39,.72);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      backdrop-filter:var(--blur);
-      box-shadow:0 14px 40px rgba(0,0,0,.45);
-      padding:12px 12px 10px;
-    }
-    #infoCard b{display:block; margin-bottom:4px}
-    #infoCard .meta{font-size:12px; color:var(--muted)}
-    #infoCard .row{display:flex; gap:8px; margin-top:10px}
-    /* Auth pill bottom-left */
-    #authPill{
-      position:fixed; left:14px; bottom:14px;
-      z-index:70;
-      display:flex; gap:8px; align-items:center;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(17,24,39,.72);
-      border:1px solid var(--border);
-      backdrop-filter:var(--blur);
-      box-shadow:0 14px 40px rgba(0,0,0,.45);
-      user-select:none;
-    }
-    #authPill button{width:auto; padding:8px 12px; border-radius:999px}
-    #cursorDot{
-      pointer-events:none;
-      position:fixed; z-index:40;
-      width:26px; height:26px;
-      border-radius:999px;
-      border:2px solid rgba(255,255,255,.85);
-      box-shadow:0 0 0 6px rgba(0,0,0,.25);
-      transform:translate(-50%,-50%);
-      display:none;
-    }
-
-    /* Mobile: drawer becomes bottom sheet */
-    @media (max-width: 900px){
-      #drawer{
-        left:10px; right:10px; width:auto;
-        top:auto; bottom:10px;
-        max-height:72vh;
-        transform:translateY(calc(100% - 70px));
-      }
-      #drawer.closed{ transform:translateY(calc(100% + 10px)); }
-      #drawerToggle{ left:10px; top:10px; display:block; }
-      #infoCard{ right:10px; bottom:86px; }
-      #authPill{ left:10px; bottom:10px; }
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <title>RP Map Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
+
 <body>
+  <!-- MAP -->
+  <div id="map-root">
+    <img id="map-image" src="/assets/map.jpg" alt="Map" />
+  </div>
 
-  <div id="map"></div>
-  <div id="cursorDot"></div>
+  <!-- COLLAPSIBLE SIDEBAR -->
+  <aside id="sidebar" class="collapsed">
+    <header>
+      <h1>RP Map</h1>
+      <button id="toggleSidebar">☰</button>
+    </header>
 
-  <button id="drawerToggle" title="Open panel">☰</button>
+    <section>
+      <input id="search" placeholder="Search houses, POIs, roads…" />
+    </section>
 
-  <aside id="drawer">
-    <div id="drawerHeader">
-      <div class="title">
-        <b>RP Map</b>
-        <span id="subtitle">Viewer • click things to inspect</span>
-      </div>
-      <div class="row">
-        <span class="chip" id="saveState">Saved</span>
-        <button id="closeDrawer" title="Close">✕</button>
-      </div>
-    </div>
+    <section class="editor-only">
+      <h3>Editor Tools</h3>
+      <button>Add Marker</button>
+      <button>Draw Road</button>
+      <button>Draw Area</button>
+      <button class="danger">Delete Selected</button>
+    </section>
 
-    <div id="drawerBody">
-      <div class="section">
-        <h3>Search</h3>
-        <input id="search" placeholder="Search houses, POIs, roads, counties..." />
-        <div class="muted" style="margin-top:8px;">(Search wiring next — UI is ready.)</div>
-      </div>
-
-      <div class="section">
-        <h3>Mode</h3>
-        <select id="mode">
-          <option value="inspect">Inspect (Viewer)</option>
-          <option value="marker">Place Marker</option>
-          <option value="road">Draw Road</option>
-          <option value="area">Draw Area (County)</option>
-          <option value="erase">Erase</option>
-        </select>
-        <div class="muted" style="margin-top:8px;">Edit modes require login + role/whitelist (we’ll enforce via /api/me).</div>
-      </div>
-
-      <div class="section">
-        <h3>Marker Type</h3>
-        <select id="markerType">
-          <option value="house">🏠 House #</option>
-          <option value="bank">🏦 Bank</option>
-          <option value="sheriff">⭐ Sheriff</option>
-          <option value="saloon">🍻 Saloon</option>
-          <option value="shop">🛒 Shop</option>
-          <option value="camp">⛺ Camp</option>
-          <option value="train">🚂 Station</option>
-          <option value="doctor">🩺 Doctor</option>
-          <option value="stable">🐎 Stable</option>
-          <option value="custom">📍 Custom</option>
-        </select>
-      </div>
-
-      <div class="section">
-        <h3>Color</h3>
-        <input id="color" type="color" value="#ffffff" />
-      </div>
-
-      <div class="section">
-        <h3>Tools</h3>
-        <div class="grid2">
-          <button class="primary" id="finish">Finish</button>
-          <button id="undo">Undo</button>
-          <button class="danger" id="deleteSel">Delete Selected</button>
-          <button id="resetView">Reset View</button>
-        </div>
-        <div class="muted" style="margin-top:8px;">
-          Tip: On desktop, right click a marker to edit details.
-        </div>
-      </div>
-
-      <div class="section">
-        <h3>Export / Import</h3>
-        <div class="grid2">
-          <button id="exportBtn">Export JSON</button>
-          <button id="importBtn">Import JSON</button>
-        </div>
-        <textarea id="jsonBox" style="width:100%;height:160px;margin-top:10px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.26);color:#fff;padding:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;font-size:11px;"></textarea>
-      </div>
-    </div>
+    <section>
+      <h3>Info</h3>
+      <div id="info">Nothing selected</div>
+    </section>
   </aside>
 
-  <div id="infoCard">
-    <b id="infoTitle">Nothing selected</b>
-    <div class="meta" id="infoMeta">Click a marker / road / county.</div>
-    <div class="row">
-      <button id="clearInfo">Clear</button>
-      <button id="saveNow" class="primary">Save</button>
-    </div>
-  </div>
+  <!-- BOTTOM BAR -->
+  <footer id="bottombar">
+    <span id="coords">x: — y: —</span>
+    <span id="zoom">zoom: 1.00</span>
+  </footer>
 
-  <div id="authPill">
-    <span class="chip" id="authState">Not logged in</span>
-    <button id="loginBtn">🔒 Login</button>
-    <button id="logoutBtn" style="display:none;">🚪 Logout</button>
-  </div>
+  <!-- LOGIN BUTTON -->
+  <button id="loginBtn" class="floating">🔐 Login</button>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    /* =========================
-       CONFIG
-    ========================== */
-    const MAP_URL = "/assets/map.jpg"; // <-- put your map here
-    const MAP_W = 1080;  // update if your image differs
-    const MAP_H = 1017;
+<script>
+/* =========================
+   AUTH
+========================= */
+async function checkAuth() {
+  const res = await fetch("/api/me");
+  if (!res.ok) return null;
+  return res.json();
+}
 
-    const STORAGE_KEY = "rdrmap_local_cache_v1";
-    const DEFAULT_MAP_ID = "rdo_main";
+function login() {
+  window.location.href = "/api/login";
+}
 
-    /* =========================
-       BASIC UI
-    ========================== */
-    const $ = (id)=>document.getElementById(id);
-    const drawer = $("drawer");
-    const drawerToggle = $("drawerToggle");
+function logout() {
+  window.location.href = "/api/logout";
+}
 
-    $("closeDrawer").onclick = ()=>drawer.classList.add("closed");
-    drawerToggle.onclick = ()=>{
-      drawer.classList.remove("closed");
-      drawerToggle.style.display = "none";
-    };
+/* =========================
+   UI STATE
+========================= */
+const sidebar = document.getElementById("sidebar");
+document.getElementById("toggleSidebar").onclick = () => {
+  sidebar.classList.toggle("collapsed");
+};
 
-    // If drawer is closed on desktop, show toggle
-    const obs = new MutationObserver(()=>{
-      if (window.innerWidth > 900){
-        drawerToggle.style.display = drawer.classList.contains("closed") ? "block" : "none";
-      } else {
-        drawerToggle.style.display = "block";
-      }
-    });
-    obs.observe(drawer, { attributes:true, attributeFilter:["class"] });
-    // start closed on mobile
-    if (window.innerWidth <= 900) drawer.classList.add("closed");
+document.getElementById("loginBtn").onclick = login;
 
-    /* =========================
-       LEAFLET MAP
-    ========================== */
-    const map = L.map("map", { crs: L.CRS.Simple, minZoom: -2, maxZoom: 4, zoomSnap: 0.25, zoomDelta: 0.25 });
-    const bounds = [[0,0],[MAP_H, MAP_W]];
-    L.imageOverlay(MAP_URL, bounds).addTo(map);
-    map.fitBounds(bounds);
-
-    // Better zoom UX
-    map.scrollWheelZoom.enable();
-    map.doubleClickZoom.enable();
-    map.keyboard.enable();
-
-    const markerLayer = L.layerGroup().addTo(map);
-    const roadLayer = L.layerGroup().addTo(map);
-    const areaLayer = L.layerGroup().addTo(map);
-
-    // Cursor visibility helper
-    const cursorDot = $("cursorDot");
-    map.getContainer().addEventListener("mousemove", (e)=>{
-      cursorDot.style.display = "block";
-      cursorDot.style.left = e.clientX + "px";
-      cursorDot.style.top = e.clientY + "px";
-    });
-    map.getContainer().addEventListener("mouseleave", ()=> cursorDot.style.display = "none");
-
-    /* =========================
-       DATA MODEL
-    ========================== */
-    let data = {
-      mapId: DEFAULT_MAP_ID,
-      markers: [],
-      roads: [],
-      areas: [],
-      updatedAt: null
-    };
-
-    let selected = null; // {kind:'marker'|'road'|'area', id/index, layer, ref}
-    let drawing = { kind:null, points:[], temp:null };
-
-    function setSavedState(text){
-      $("saveState").textContent = text;
-    }
-    function setInfo(title, meta){
-      $("infoTitle").textContent = title;
-      $("infoMeta").textContent = meta || "";
-    }
-
-    function iconFor(m){
-      const color = m.color || "#fff";
-      const type = m.type || "custom";
-      const glyph = ({
-        house:"🏠", bank:"🏦", sheriff:"⭐", saloon:"🍻", shop:"🛒",
-        camp:"⛺", train:"🚂", doctor:"🩺", stable:"🐎", custom:"📍"
-      })[type] || "📍";
-
-      return L.divIcon({
-        className: "",
-        html: `<div style="
-          width:30px;height:30px;border-radius:999px;
-          display:grid;place-items:center;
-          background:rgba(0,0,0,.55);
-          border:2px solid ${color};
-          box-shadow:0 10px 22px rgba(0,0,0,.35);
-          font: 18px/1 system-ui;
-          user-select:none;
-        ">${m.type==="house" ? (m.houseNo || "🏠") : glyph}</div>`,
-        iconSize:[30,30],
-        iconAnchor:[15,15]
-      });
-    }
-
-    function render(){
-      markerLayer.clearLayers();
-      roadLayer.clearLayers();
-      areaLayer.clearLayers();
-
-      data.markers.forEach(m=>{
-        const lm = L.marker([m.y, m.x], { icon: iconFor(m), draggable:false }).addTo(markerLayer);
-        lm.on("click",(e)=>{
-          L.DomEvent.stopPropagation(e);
-          selected = { kind:"marker", id:m.id, layer:lm, ref:m };
-          setInfo(m.name || markerTitle(m), markerMeta(m));
-        });
-        lm.on("contextmenu",(e)=>{
-          L.DomEvent.stopPropagation(e);
-          editMarker(m);
-        });
-      });
-
-      data.roads.forEach((r, idx)=>{
-        const line = L.polyline(r.pts, { color:r.color||"#fff", weight:4, opacity:.9 }).addTo(roadLayer);
-        line.on("click",(e)=>{
-          L.DomEvent.stopPropagation(e);
-          selected = { kind:"road", index:idx, layer:line, ref:r };
-          setInfo(r.name || `Road #${idx+1}`, `Points: ${r.pts.length}`);
-        });
-      });
-
-      data.areas.forEach((a, idx)=>{
-        const poly = L.polygon(a.pts, { color:a.color||"#4fa3ff", weight:3, fillOpacity:0.12 }).addTo(areaLayer);
-        poly.on("click",(e)=>{
-          L.DomEvent.stopPropagation(e);
-          selected = { kind:"area", index:idx, layer:poly, ref:a };
-          setInfo(a.name || `County #${idx+1}`, `Points: ${a.pts.length}`);
-        });
-      });
-    }
-
-    function markerTitle(m){
-      if (m.type === "house") return `House ${m.houseNo || m.id}`;
-      return `${m.type || "marker"} #${m.id}`;
-    }
-    function markerMeta(m){
-      const parts = [];
-      parts.push(`Type: ${m.type}`);
-      if (m.note) parts.push(m.note);
-      parts.push(`x:${m.x} y:${m.y}`);
-      return parts.join(" • ");
-    }
-
-    function nextId(){
-      const ids = new Set(data.markers.map(x=>x.id));
-      let n=1; while(ids.has(n)) n++;
-      return n;
-    }
-
-    function editMarker(m){
-      const name = prompt("Name", m.name || "") ?? (m.name||"");
-      const note = prompt("Note / description", m.note || "") ?? (m.note||"");
-      const color = prompt("Color hex (#ffffff)", m.color || "#ffffff") ?? (m.color||"#ffffff");
-
-      m.name = String(name).trim();
-      m.note = String(note).trim();
-      m.color = String(color).trim() || "#ffffff";
-
-      if (m.type==="house"){
-        const hn = prompt("House # (leave blank for auto)", m.houseNo || "") ?? (m.houseNo||"");
-        m.houseNo = String(hn).trim();
-      }
-      setSavedState("Unsaved");
-      saveLocal();
-      render();
-    }
-
-    /* =========================
-       DRAW / CLICK LOGIC
-    ========================== */
-    function getMode(){ return $("mode").value; }
-
-    map.on("click",(e)=>{
-      const mode = getMode();
-      const y = Math.round(e.latlng.lat);
-      const x = Math.round(e.latlng.lng);
-
-      if (mode === "inspect"){
-        selected = null;
-        setInfo("Nothing selected", "Click a marker / road / county.");
-        return;
-      }
-
-      if (mode === "marker"){
-        const id = nextId();
-        const type = $("markerType").value;
-        const color = $("color").value || "#ffffff";
-        const name = prompt("Name (optional)", "") || "";
-        const note = prompt("Note (optional)", "") || "";
-
-        const m = { id, type, x, y, color, name:name.trim(), note:note.trim() };
-        if (type === "house") m.houseNo = String(id);
-
-        data.markers.push(m);
-        setSavedState("Unsaved");
-        saveLocal();
-        render();
-        return;
-      }
-
-      if (mode === "road" || mode === "area"){
-        if (!drawing.kind){
-          drawing.kind = mode;
-          drawing.points = [];
-        }
-        drawing.points.push([y,x]);
-
-        if (drawing.temp) map.removeLayer(drawing.temp);
-        if (mode === "road"){
-          drawing.temp = L.polyline(drawing.points, { color: $("color").value || "#fff", weight:4, opacity:.9 }).addTo(map);
-        } else {
-          drawing.temp = L.polygon(drawing.points, { color: $("color").value || "#4fa3ff", weight:3, fillOpacity:0.08 }).addTo(map);
-        }
-        setSavedState("Unsaved");
-        return;
-      }
-
-      if (mode === "erase"){
-        // erase works by selecting then delete selected
-        return;
-      }
-    });
-
-    $("finish").onclick = ()=>{
-      const mode = getMode();
-      if (mode !== "road" && mode !== "area") return;
-
-      if (!drawing.points || drawing.points.length < (mode==="road"?2:3)){
-        alert(mode==="road" ? "Road needs at least 2 points." : "Area needs at least 3 points.");
-        return;
-      }
-
-      const color = $("color").value || "#ffffff";
-      const name = prompt(mode==="road" ? "Road name (optional)" : "County name (optional)", "") || "";
-
-      if (mode === "road"){
-        data.roads.push({ name:name.trim(), color, pts: drawing.points.slice() });
-      } else {
-        data.areas.push({ name:name.trim(), color, pts: drawing.points.slice() });
-      }
-
-      if (drawing.temp) map.removeLayer(drawing.temp);
-      drawing = { kind:null, points:[], temp:null };
-
-      setSavedState("Unsaved");
-      saveLocal();
-      render();
-    };
-
-    $("undo").onclick = ()=>{
-      if (!drawing.points.length) return;
-      drawing.points.pop();
-      if (drawing.temp) map.removeLayer(drawing.temp);
-      drawing.temp = null;
-
-      const mode = drawing.kind;
-      if (drawing.points.length){
-        if (mode==="road"){
-          drawing.temp = L.polyline(drawing.points, { color: $("color").value || "#fff", weight:4, opacity:.9 }).addTo(map);
-        } else if (mode==="area"){
-          drawing.temp = L.polygon(drawing.points, { color: $("color").value || "#4fa3ff", weight:3, fillOpacity:0.08 }).addTo(map);
-        }
-      }
-      setSavedState("Unsaved");
-    };
-
-    $("deleteSel").onclick = ()=>{
-      if (!selected) return alert("Nothing selected.");
-      if (!confirm("Delete selected item?")) return;
-
-      if (selected.kind==="marker"){
-        data.markers = data.markers.filter(m=>m.id !== selected.id);
-      } else if (selected.kind==="road"){
-        data.roads.splice(selected.index,1);
-      } else if (selected.kind==="area"){
-        data.areas.splice(selected.index,1);
-      }
-      selected = null;
-      setInfo("Nothing selected","Click a marker / road / county.");
-      setSavedState("Unsaved");
-      saveLocal();
-      render();
-    };
-
-    $("resetView").onclick = ()=> map.fitBounds(bounds);
-    $("clearInfo").onclick = ()=>{
-      selected = null;
-      setInfo("Nothing selected","Click a marker / road / county.");
-    };
-
-    /* =========================
-       LOCAL CACHE + EXPORT/IMPORT
-    ========================== */
-    function saveLocal(){
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch{}
-    }
-    function loadLocal(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed==="object"){
-          data = { ...data, ...parsed };
-        }
-      }catch{}
-    }
-
-    $("exportBtn").onclick = ()=>{
-      $("jsonBox").value = JSON.stringify(data, null, 2);
-    };
-    $("importBtn").onclick = ()=>{
-      try{
-        const parsed = JSON.parse($("jsonBox").value);
-        if (!parsed || typeof parsed!=="object") throw new Error("Invalid JSON");
-        if (!Array.isArray(parsed.markers) || !Array.isArray(parsed.roads) || !Array.isArray(parsed.areas)) {
-          throw new Error("JSON must include markers[], roads[], areas[]");
-        }
-        data = parsed;
-        setSavedState("Unsaved");
-        saveLocal();
-        render();
-        alert("Imported.");
-      }catch(e){
-        alert("Import failed: " + (e.message||e));
-      }
-    };
-
-    /* =========================
-       AUTH (API HOOKS)
-    ========================== */
-    async function refreshAuth(){
-      try{
-        const r = await fetch("/api/me", { credentials:"include" });
-        if (!r.ok) throw new Error("not authed");
-        const me = await r.json();
-
-        $("authState").textContent = `Logged in: ${me?.user?.username || me?.user?.id || "ok"}`;
-        $("loginBtn").style.display = "none";
-        $("logoutBtn").style.display = "inline-block";
-      }catch{
-        $("authState").textContent = "Not logged in";
-        $("loginBtn").style.display = "inline-block";
-        $("logoutBtn").style.display = "none";
-      }
-    }
-
-    $("loginBtn").onclick = ()=> window.location.href = "/api/login";
-    $("logoutBtn").onclick = async ()=>{
-      await fetch("/api/logout", { method:"POST", credentials:"include" }).catch(()=>{});
-      await refreshAuth();
-    };
-
-    $("saveNow").onclick = async ()=>{
-      // This will call your /api/save (we’ll wire it next)
-      // For now, just local-save so you don’t lose work.
-      saveLocal();
-      setSavedState("Saved (local)");
-      alert("Saved locally. Next step is wiring /api/save to GitHub.");
-    };
-
-    /* =========================
-       BOOT
-    ========================== */
-    loadLocal();
-    render();
-    refreshAuth();
-
-    setInterval(()=>saveLocal(), 2000);
-  </script>
+/* =========================
+   INIT
+========================= */
+(async () => {
+  const user = await checkAuth();
+  if (user?.editor) {
+    document.body.classList.add("is-editor");
+    document.getElementById("loginBtn").textContent = "🚪 Logout";
+    document.getElementById("loginBtn").onclick = logout;
+  }
+})();
+</script>
 </body>
 </html>
