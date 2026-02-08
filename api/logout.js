@@ -1,6 +1,6 @@
+import { clearCookie, json } from "./_lib.js";
+
 export default function handler(req, res){
-  res.setHeader("Set-Cookie", [
-    "rp_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax" + (process.env.NODE_ENV==="production" ? "; Secure" : "")
-  ]);
-  return res.status(200).json({ ok:true });
+  clearCookie(res, "session");
+  return json(res, 200, { ok:true });
 }
