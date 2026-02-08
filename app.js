@@ -1,114 +1,146 @@
-const LOAD_URL = "/data/maps/rdo_main.json";
-const SAVE_URL = "/api/maps/rdo_main";
+/* =====================================================
+   A Cowboy's Frontier – Map Editor (FINAL CLEAN VERSION)
+   ===================================================== */
 
-const MAP_IMAGE_URL = "/assets/rdo-map.jpeg"; // IMPORTANT: leading slash
-// If your site is not served from root, change to "./assets/rdo-maps.jpeg"
+const MAP_IMAGE_URL = "./assets/rdo-maps.jpeg";
+const LOAD_URL = "./data/maps/rdo_main.json";
 
-const typeColors = {
+// ---- Marker types ----
+const TYPE_COLORS = {
   house: "blue",
   shop: "red",
   government: "yellow"
 };
 
-let selectedType = "house";
-let selectedId = null;
-
+// ---- State ----
+let map;
 let mapData = { version: 1, updatedAt: "", markers: [] };
-let markerMap = new Map();
+let markers = new Map(); // id -> leaflet marker
+let selectedId = null;
+let selectedType = "house";
 
+// ---- DOM helper ----
 const $ = (id) => document.getElementById(id);
 
-// ---------- Leaflet: Image Map Setup ----------
-const map = L.map("map", {
-  crs: L.CRS.Simple,     // <— makes it an image coordinate system
+// ---- DOM refs (HARD REQUIREMENTS) ----
+const elApply = $("apply");
+const elUpdate = $("update");
+const elName = $("name");
+const elType = $("type");
+const elStatus = $("status");
+const elDesc = $("description");
+const elLat = $("lat");
+const elLng = $("lng");
+
+if (![elApply, elUpdate, elName, elType, elStatus, elDesc, elLat, elLng].every(Boolean)) {
+  alert("ERROR: One or more required HTML elements are missing.");
+  throw new Error("Missing DOM elements");
+}
+
+// ---- Init map (IMAGE BASED) ----
+map = L.map("map", {
+  crs: L.CRS.Simple,
   minZoom: -5,
-  maxZoom: 3,
-  zoomControl: true
+  maxZoom: 4
 });
 
-// Load image to get width/height, then create bounds correctly
+// Force visible cursor
+map.getContainer().style.cursor = "crosshair";
+
+// Load image and set bounds
 const img = new Image();
 img.src = MAP_IMAGE_URL;
 
 img.onload = () => {
-  const w = img.width;
-  const h = img.height;
-
-  // Leaflet CRS.Simple uses [y, x] for latlng, so bounds are:
-  const bounds = [[0, 0], [h, w]];
+  const bounds = [[0, 0], [img.height, img.width]];
 
   L.imageOverlay(MAP_IMAGE_URL, bounds).addTo(map);
-
-  // Fit to image
   map.fitBounds(bounds);
-
-  // Optional: keep panning within image
   map.setMaxBounds(bounds);
-  map.on("drag", () => map.panInsideBounds(bounds, { animate: false }));
 
-  // Now that map exists, load markers
-  loadMarkers();
+  loadExistingMarkers();
 };
 
 img.onerror = () => {
-  alert("Failed to load map image: " + MAP_IMAGE_URL + "\nCheck the path and file name.");
+  alert("FAILED TO LOAD MAP IMAGE:\n" + MAP_IMAGE_URL);
 };
 
-// ---------- Icons ----------
-function icon(type) {
+// ---- Marker icon ----
+function markerIcon(type) {
   return L.divIcon({
-    className: "",
-    html: `<div class="pin ${typeColors[type]}"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7]
+    className: "pin-wrap",
+    html: `<div class="pin ${TYPE_COLORS[type]}"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
   });
 }
 
-// ---------- Load markers ----------
-function loadMarkers() {
-  fetch(LOAD_URL)
-    .then(r => r.ok ? r.json() : { version: 1, markers: [] })
-    .then(j => {
-      mapData = j && typeof j === "object" ? j : { version: 1, markers: [] };
-      if (!Array.isArray(mapData.markers)) mapData.markers = [];
+// ---- Load JSON if exists ----
+async function loadExistingMarkers() {
+  try {
+    const res = await fetch(LOAD_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error();
+    const json = await res.json();
 
-      mapData.markers.forEach(addMarkerFromData);
-    })
-    .catch(() => {
-      mapData = { version: 1, updatedAt: "", markers: [] };
-    });
+    if (!json || !Array.isArray(json.markers)) return;
+
+    mapData = json;
+
+    json.markers.forEach(addMarker);
+  } catch {
+    // No file yet → start clean
+    mapData = { version: 1, updatedAt: "", markers: [] };
+  }
 }
 
-function newId() {
-  return "m_" + Math.random().toString(16).slice(2, 10);
+// ---- Create unique ID ----
+function uid() {
+  return "m_" + crypto.randomUUID();
 }
 
-function addMarkerFromData(m) {
-  const lm = L.marker([m.coordinates.lat, m.coordinates.lng], { icon: icon(m.type) }).addTo(map);
+// ---- Add marker to map ----
+function addMarker(m) {
+  const lm = L.marker([m.coordinates.lat, m.coordinates.lng], {
+    icon: markerIcon(m.type),
+    draggable: true
+  }).addTo(map);
+
   lm.on("click", () => selectMarker(m.id));
-  markerMap.set(m.id, lm);
+
+  lm.on("dragend", () => {
+    const p = lm.getLatLng();
+    m.coordinates.lat = p.lat;
+    m.coordinates.lng = p.lng;
+    if (selectedId === m.id) {
+      elLat.value = p.lat;
+      elLng.value = p.lng;
+    }
+  });
+
+  markers.set(m.id, lm);
 }
 
+// ---- Select marker ----
 function selectMarker(id) {
-  selectedId = id;
   const m = mapData.markers.find(x => x.id === id);
   if (!m) return;
 
-  $("name").value = m.name || "";
-  $("type").value = m.type;
-  $("status").value = m.status || "";
-  $("description").value = m.description || "";
-  $("lat").value = m.coordinates.lat;
-  $("lng").value = m.coordinates.lng;
+  selectedId = id;
 
-  $("apply").disabled = false;
+  elName.value = m.name || "";
+  elType.value = m.type;
+  elStatus.value = m.status || "";
+  elDesc.value = m.description || "";
+  elLat.value = m.coordinates.lat;
+  elLng.value = m.coordinates.lng;
+
+  elApply.disabled = false;
 }
 
-// ---------- Map click: add marker ----------
+// ---- Map click = create marker ----
 map.on("click", (e) => {
-  // e.latlng in CRS.Simple is image coords: lat=y, lng=x
   const m = {
-    id: newId(),
+    id: uid(),
     name: "",
     type: selectedType,
     status: "",
@@ -120,46 +152,63 @@ map.on("click", (e) => {
   };
 
   mapData.markers.push(m);
-  addMarkerFromData(m);
+  addMarker(m);
   selectMarker(m.id);
 });
 
-// ---------- Apply (edit marker in memory) ----------
-$("apply").onclick = () => {
+// ---- APPLY (edit marker) ----
+elApply.onclick = () => {
+  if (!selectedId) return;
+
   const m = mapData.markers.find(x => x.id === selectedId);
   if (!m) return;
 
-  m.name = $("name").value;
-  m.status = $("status").value;
-  m.description = $("description").value;
+  const lat = Number(elLat.value);
+  const lng = Number(elLng.value);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    alert("Coordinates must be numbers.");
+    return;
+  }
 
-  m.coordinates.lat = parseFloat($("lat").value);
-  m.coordinates.lng = parseFloat($("lng").value);
+  m.name = elName.value;
+  m.status = elStatus.value;
+  m.description = elDesc.value;
+  m.coordinates.lat = lat;
+  m.coordinates.lng = lng;
 
-  // move marker on map
-  markerMap.get(m.id)?.setLatLng([m.coordinates.lat, m.coordinates.lng]);
+  const lm = markers.get(m.id);
+  if (lm) lm.setLatLng([lat, lng]);
 };
 
-// ---------- Update (Save JSON) ----------
-$("update").onclick = () => {
+// ---- UPDATE (download JSON) ----
+elUpdate.onclick = () => {
   mapData.updatedAt = new Date().toISOString();
 
-  fetch(SAVE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(mapData, null, 2)
-  });
+  const blob = new Blob(
+    [JSON.stringify(mapData, null, 2)],
+    { type: "application/json" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "rdo_main.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
-// ---------- Type buttons ----------
-document.querySelectorAll(".type").forEach(btn => {
+// ---- Type buttons ----
+document.querySelectorAll("button.type").forEach(btn => {
   btn.onclick = () => {
-    document.querySelectorAll(".type").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("button.type").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedType = btn.dataset.type;
-    $("type").value = selectedType;
+    elType.value = selectedType;
   };
 });
 
-// Keep type input synced at start
-$("type").value = selectedType;
+// ---- Initial state ----
+elApply.disabled = true;
+elType.value = selectedType;
