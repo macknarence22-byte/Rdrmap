@@ -1,74 +1,89 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>RP Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="/style.css?v=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A Cowboy’s Frontier — RP Map</title>
+  <meta name="description" content="Interactive RP Map for A Cowboy’s Frontier" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand__mark">ACF</div>
+      <div class="brand__text">
+        <div class="brand__title">A Cowboy’s Frontier</div>
+        <div class="brand__sub">RP Map • Explore • Search • Inspect</div>
+      </div>
+    </div>
 
-  <div id="mapWrap">
-    <img id="mapImg" src="/assets/map.jpg" alt="Map"/>
-  </div>
+    <div class="topbar__actions">
+      <div class="search">
+        <input id="searchInput" type="search" placeholder="Search places, houses, POIs…" autocomplete="off" />
+        <button id="clearSearch" class="btn btn--ghost" title="Clear">✕</button>
+      </div>
 
-  <button id="authBtn">🔒 Login</button>
-  <button id="saveBtn" style="display:none;">💾 Save</button>
+      <select id="typeFilter" class="select">
+        <option value="all">All Types</option>
+      </select>
 
-  <pre id="status"></pre>
+      <button id="resetView" class="btn" title="Reset view">Reset</button>
+      <button id="toggleSidebar" class="btn btn--ghost" title="Toggle sidebar">Sidebar</button>
+    </div>
+  </header>
 
-<script>
-const statusEl = document.getElementById("status");
-const authBtn = document.getElementById("authBtn");
-const saveBtn = document.getElementById("saveBtn");
+  <main class="layout">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar__section">
+        <div class="sidebar__title">Quick Stats</div>
+        <div class="stats">
+          <div class="stat"><div class="stat__num" id="statTotal">—</div><div class="stat__label">Items</div></div>
+          <div class="stat"><div class="stat__num" id="statShown">—</div><div class="stat__label">Shown</div></div>
+          <div class="stat"><div class="stat__num" id="statTypes">—</div><div class="stat__label">Types</div></div>
+        </div>
+      </div>
 
-let ME = null;
-let MAP_ID = "rdo_main";
-let DATA = { markers:[], roads:[], areas:[] };
+      <div class="sidebar__section">
+        <div class="sidebar__title">Results</div>
+        <div id="results" class="results"></div>
+      </div>
 
-function setStatus(x){ statusEl.textContent = x; }
+      <div class="sidebar__footer">
+        <div class="hint">
+          <b>Tips:</b> Scroll to zoom • Drag to pan • Click markers to inspect
+        </div>
+      </div>
+    </aside>
 
-async function refreshMe(){
-  const r = await fetch("/api/me", { credentials:"include" });
-  ME = await r.json();
-  if(ME.loggedIn){
-    authBtn.textContent = ME.editor ? "🚪 Logout (Editor)" : "🚪 Logout (Viewer)";
-    authBtn.onclick = ()=> location.href="/api/logout";
-    saveBtn.style.display = ME.editor ? "block" : "none";
-  }else{
-    authBtn.textContent = "🔒 Login";
-    authBtn.onclick = ()=> location.href="/api/login";
-    saveBtn.style.display = "none";
-  }
-}
+    <section class="stage">
+      <div id="mapWrap" class="mapWrap" aria-label="Map viewer">
+        <img id="mapImage" class="mapImage" src="./assets/rdo-map.jpeg" alt="RDO Map" />
 
-async function loadMap(){
-  const r = await fetch(`/api/load?mapId=${encodeURIComponent(MAP_ID)}`, { credentials:"include" });
-  const j = await r.json();
-  DATA = j.payload || DATA;
-  setStatus("Loaded map: " + MAP_ID + "\n" + JSON.stringify(DATA,null,2));
-}
+        <!-- Markers get injected here -->
+        <div id="markerLayer" class="markerLayer"></div>
 
-async function saveMap(){
-  if(!ME?.editor) return alert("Not allowed.");
-  const r = await fetch("/api/save",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    credentials:"include",
-    body: JSON.stringify({ mapId: MAP_ID, payload: DATA, message: "Manual save" })
-  });
-  const j = await r.json();
-  if(!j.ok) return alert("Save failed: " + (j.error || "unknown"));
-  alert(j.skipped ? "No changes to commit." : ("Saved! Commit: " + (j.commit||"ok")));
-}
+        <div class="hud">
+          <div class="pill" id="hudCoords">x: — y: —</div>
+          <div class="pill" id="hudZoom">zoom: 1.00</div>
+        </div>
+      </div>
 
-saveBtn.onclick = saveMap;
+      <div id="inspector" class="inspector inspector--hidden">
+        <div class="inspector__head">
+          <div class="inspector__title" id="insTitle">Inspect</div>
+          <button id="closeInspector" class="btn btn--ghost">Close</button>
+        </div>
+        <div class="inspector__body" id="insBody"></div>
+      </div>
+    </section>
+  </main>
 
-(async ()=>{
-  await refreshMe();
-  await loadMap();
-})();
-</script>
+  <footer class="footer">
+    <span>© A Cowboy’s Frontier</span>
+    <span class="dot">•</span>
+    <span class="muted">Hosted on Vercel</span>
+  </footer>
 
+  <script src="./app.js"></script>
 </body>
 </html>
