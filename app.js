@@ -1,7 +1,7 @@
 const LOAD_URL = "/data/maps/rdo_main.json";
 const SAVE_URL = "/api/maps/rdo_main";
 
-const MAP_IMAGE_URL = "/assets/rdo-maps.jpeg"; // IMPORTANT: leading slash
+const MAP_IMAGE_URL = "/assets/rdo-map.jpeg"; // IMPORTANT: leading slash
 // If your site is not served from root, change to "./assets/rdo-maps.jpeg"
 
 const typeColors = {
