@@ -1,205 +1,52 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ACF • RDR Map Editor</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta charset="UTF-8" />
+  <title>A Cowboy’s Frontier – Map Editor</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="app.js"></script>
 </head>
-
 <body>
-  <div class="app">
+  <header>
+    <button class="type active" data-type="house">House (Blue)</button>
+    <button class="type" data-type="shop">Shop (Red)</button>
+    <button class="type" data-type="government">Government (Yellow)</button>
 
-    <!-- Top Command Bar -->
-    <header class="top">
-      <div class="top__left">
-        <div class="logo">
-          <div class="logo__badge">ACF</div>
-          <div class="logo__meta">
-            <div class="logo__title">A Cowboy’s Frontier</div>
-            <div class="logo__sub">RDR Map Editor</div>
-          </div>
-        </div>
+    <button id="apply" disabled>Apply</button>
+    <button id="update">Update</button>
+  </header>
+
+  <main>
+    <div id="map"></div>
+
+    <aside>
+      <h3>Marker</h3>
+
+      <label>Name</label>
+      <input id="name" />
+
+      <label>Type</label>
+      <input id="type" disabled />
+
+      <label>Status</label>
+      <input id="status" />
+
+      <label>Description</label>
+      <textarea id="description"></textarea>
+
+      <label>Coordinates</label>
+      <div class="coords">
+        <input id="lat" type="number" step="0.0000001" />
+        <input id="lng" type="number" step="0.0000001" />
       </div>
-
-      <div class="top__center">
-        <div class="searchbar">
-          <span class="ic">⌕</span>
-          <input id="q" type="search" placeholder="Search markers (name/type/notes)..." autocomplete="off" />
-          <button id="qClear" class="iconBtn" title="Clear search">✕</button>
-        </div>
-
-        <select id="type" class="pillSelect" title="Type filter">
-          <option value="all">All Types</option>
-        </select>
-
-        <div class="chipRow">
-          <button id="btnReset" class="chipBtn" title="Reset view (R)">Reset</button>
-          <button id="btnFocus" class="chipBtn" title="Focus selected (F)" disabled>Focus</button>
-        </div>
-      </div>
-
-      <div class="top__right">
-        <a id="loginCta" class="loginCta" href="/api/login">
-          Are you a map editor? <b>Click here</b> to sign in
-        </a>
-
-        <div id="userBox" class="userBox isHidden">
-          <div class="userBox__name" id="userName">@user</div>
-          <button id="btnEditor" class="primaryBtn" disabled>Editor</button>
-          <button id="btnLogout" class="iconBtn" title="Logout">⎋</button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Body -->
-    <div class="body">
-
-      <!-- Left Explorer -->
-      <aside id="left" class="panel left">
-        <div class="panel__head">
-          <div class="panel__title">Explorer</div>
-          <div class="panel__meta">
-            <span class="kpi"><b id="kTotal">—</b><span>Items</span></span>
-            <span class="kpi"><b id="kShown">—</b><span>Shown</span></span>
-            <span class="kpi"><b id="kTypes">—</b><span>Types</span></span>
-          </div>
-        </div>
-
-        <div class="panel__section">
-          <div class="sectionTitle">Results</div>
-          <div id="results" class="list"></div>
-        </div>
-
-        <div class="panel__foot">
-          <div class="hint">
-            <b>Tips</b>: Scroll to zoom • Drag to pan • Click marker to inspect<br/>
-            <span class="muted">Shortcuts:</span> <span class="mono">R</span> reset • <span class="mono">F</span> focus • <span class="mono">Esc</span> close panels
-          </div>
-        </div>
-      </aside>
-
-      <div class="splitHandle" id="splitLeft" title="Drag to resize"></div>
-
-      <!-- Center Map -->
-      <main class="center">
-        <div id="map" class="map">
-          <img id="mapImg" src="./assets/rdo-map.jpeg" alt="RDO Map" />
-          <div id="layer" class="layer"></div>
-
-          <!-- Minimap -->
-          <div class="mini">
-            <div class="mini__title">Minimap</div>
-            <div class="mini__box">
-              <img id="miniImg" src="./assets/rdo-map.jpeg" alt="Minimap" />
-              <div id="miniView" class="mini__view"></div>
-            </div>
-          </div>
-
-          <!-- Tool Dock -->
-          <div class="dock">
-            <button class="dockBtn isActive" data-tool="browse" title="Browse (1)">Browse</button>
-            <button class="dockBtn" data-tool="add" title="Add (2)" id="toolAdd" disabled>Add</button>
-            <button class="dockBtn" data-tool="delete" title="Delete (3)" id="toolDel" disabled>Delete</button>
-            <div class="dockSep"></div>
-            <button class="dockBtn" id="btnUndo" title="Undo last add" disabled>Undo</button>
-            <button class="dockBtn dockBtn--gold" id="btnSave" title="Save changes" disabled>Save</button>
-          </div>
-
-          <!-- HUD -->
-          <div class="hud">
-            <div class="hudPill" id="hudCoords">x: — y: —</div>
-            <div class="hudPill" id="hudZoom">zoom: 1.00</div>
-            <div class="hudPill hudPill--muted" id="hudMode">mode: browse</div>
-            <div class="hudPill hudPill--warn" id="hudDirty" style="display:none;">unsaved</div>
-          </div>
-
-          <!-- Crosshair for placing -->
-          <div id="crosshair" class="crosshair isHidden"></div>
-
-          <!-- Nice overlay states -->
-          <div id="overlay" class="overlay isHidden">
-            <div class="overlay__card">
-              <div class="overlay__title" id="ovTitle">Loading…</div>
-              <div class="overlay__desc" id="ovDesc">Fetching map data.</div>
-              <div class="overlay__actions" id="ovActions"></div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <div class="splitHandle" id="splitRight" title="Drag to resize"></div>
-
-      <!-- Right Inspector / Editor -->
-      <aside id="right" class="panel right">
-        <div class="tabs">
-          <button class="tab isActive" data-tab="inspect">Inspect</button>
-          <button class="tab" data-tab="editor" id="tabEditor" disabled>Editor</button>
-        </div>
-
-        <div id="inspectTab" class="tabBody">
-          <div class="panel__head">
-            <div class="panel__title" id="insTitle">Nothing selected</div>
-            <div class="panel__sub" id="insSub">Click a marker to see details.</div>
-          </div>
-          <div class="panel__section">
-            <div id="insBody" class="kv"></div>
-          </div>
-        </div>
-
-        <div id="editorTab" class="tabBody isHidden">
-          <div class="panel__head">
-            <div class="panel__title">Editor</div>
-            <div class="panel__sub">Add / delete markers and save to GitHub via your API.</div>
-          </div>
-
-          <div class="panel__section">
-            <div class="sectionTitle">New Marker</div>
-            <div class="form">
-              <label>
-                <span>Name</span>
-                <input id="mName" type="text" placeholder="Valentine Rental" />
-              </label>
-              <label>
-                <span>Type</span>
-                <input id="mType" type="text" placeholder="House / Shop / POI" />
-              </label>
-              <label>
-                <span>Notes</span>
-                <textarea id="mNotes" rows="3" placeholder="Optional notes…"></textarea>
-              </label>
-              <div class="row">
-                <button id="btnPlace" class="primaryBtn" disabled>Click map to place</button>
-                <button id="btnCancelPlace" class="chipBtn" disabled>Cancel</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel__section">
-            <div class="sectionTitle">Selected</div>
-            <div id="selBox" class="selBox">No marker selected.</div>
-            <div class="row">
-              <button id="btnDeleteSel" class="dangerBtn" disabled>Delete selected</button>
-              <button id="btnFocusSel" class="chipBtn" disabled>Focus</button>
-            </div>
-          </div>
-
-          <div class="panel__section">
-            <div class="sectionTitle">All markers</div>
-            <div id="editorList" class="list list--tight"></div>
-          </div>
-        </div>
-      </aside>
-
-    </div>
-
-    <footer class="foot">
-      <span>© A Cowboy’s Frontier</span>
-      <span class="dot">•</span>
-      <span class="muted">Hosted on Vercel</span>
-    </footer>
-  </div>
-
-  <script src="./app.js"></script>
+    </aside>
+  </main>
 </body>
 </html>
